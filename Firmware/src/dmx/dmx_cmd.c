@@ -172,6 +172,23 @@ cmd_dmx_modify(BaseSequentialStream *chp, int argc, char *argv[])
           chprintf(chp, "Possible commands are:\r\n"
           DMX_USAGE_HELP);
         }
-    }
+      else if (strcmp(argv[0], "lookup") == 0) {
+		  int height, width;
+		  uint32_t *table = dmx_getLookupTable();
+		  if(table != NULL) {
+		  	dmx_getScreenresolution(&width, &height);
+			int x,y;
+			for(y = height -1; y >= 0; y--) {
+			  chprintf(chp,"| ");
+			  for(x = 0; x < width; x++) {
+              	chprintf(chp,"%03d |", table[y * width + x]);
+			  }
+			  chprintf(chp, "\r\n");
+			}
+		  } else {
+			 chprintf(chp, "Error no lookup table loaded.\r\n");
+		  }
+		}
+	}
 
 }

@@ -151,6 +151,11 @@ static const GPTConfig gpt5cfg =
   gpt5cb, /* Timer callback.*/
   0 };
 
+
+void setUniverseLength(void) {
+	}
+
+
 /******************************************************************************
  * GLOBAL FUNCTIONS
  ******************************************************************************/
@@ -165,13 +170,21 @@ DMXInit(void)
   uartStart(&UARTD1, &uart1cfg);
 
   /* Set the initial length of DMX to one */
-  dmx_buffer.length = 1;
+  dmx_buffer.length = DMX_BUFFER_MAX;
 
   /* Load wall configuration */
   memset(&wallcfg, 0, sizeof(wallconf_t));
   readConfigurationFile(&wallcfg);
 
-  dmx_buffer.length = wallcfg.width * wallcfg.height * DMX_RGB_COLOR_WIDTH;
+	
+  	if(wallcfg.pLookupTable) {
+		int i;
+		for(i = 0; i < wallcfg.width * wallcfg.height; i++) {
+			if(dmx_buffer.length < wallcfg.pLookupTable[i] + 3) {
+				dmx_buffer.length = wallcfg.pLookupTable[i] + 3;
+			};
+		}
+	}
 }
 
 /**
@@ -269,6 +282,10 @@ void dmx_getDefaultConfiguration(int *pFPS, int *pDim)
 	}
 }
 
+uint32_t* dmx_getLookupTable(void) {
+	return wallcfg.pLookupTable;
+}
+
 void dmx_dim(int value)
 {
 	if (value >= 0 && value <= 100)
@@ -279,15 +296,7 @@ void dmx_dim(int value)
 
 int dmx_update(int width, int height)
 {
-	int memorylength = width * height * DMX_RGB_COLOR_WIDTH;
 
-	/* Catch buffer overflows */
-	if (memorylength > DMX_BUFFER_MAX)
-	{
-	  return FALSE;
-	}
-
-	dmx_buffer.length = memorylength;
 	return TRUE;
 }
 
@@ -307,8 +316,7 @@ int dmx_update(int width, int height)
  *
  * @return < 0 on errors
  */
-static int
-wall_handler(void* config, const char* section, const char* name,
+static int wall_handler(void* config, const char* section, const char* name,
     const char* value)
 {
   wallconf_t* pconfig = (wallconf_t*) config;
@@ -343,13 +351,11 @@ wall_handler(void* config, const char* section, const char* name,
           if (pconfig->pLookupTable == NULL)
           {
         	  /*FCSCHED_PRINT("%s Not enough memory to allocate %d bytes \r\n", __FILE__, memoryLength); */
+			  return 0;
           }
 		  /* Clean the whole memory: (dmxval is reused as index) */
-		  for(dmxval=0; dmxval < memoryLength; dmxval++)
-		  {
-			pconfig->pLookupTable[dmxval] = 0;
-		  }
-        }
+          memset(pconfig->pLookupTable, 0, memoryLength);
+		}
       col = strtol(name, NULL, 10);
       dmxval = (uint32_t) strtol(value, NULL, 10);
 
@@ -400,43 +406,33 @@ dimmValue(uint8_t incoming)
 static void updateDMXbuffer()
 {
 	int row, col, offset;
-
-	/* The given width and height are both set to zero -> deactivate the mapping logic */
-	if (dmx_buffer.length)
-	{
-		/* Set the DMX buffer directly */
-		memcpy(dmx_buffer.buffer, dmx_fb, DMX_BUFFER_MAX);
-		return;
-	}
-
+	  
 	  /* no configuration is present, the mapping could not be done */
 	  if (wallcfg.pLookupTable)
 	  {
-	      for (row = 0; row < wallcfg.height; row++)
+	     for (row = 0; row < wallcfg.height; row++)
 	        {
 	          for (col = 0; col < wallcfg.width; col++)
 	            {
 	              offset = (row * wallcfg.width + col);
-	              dmx_buffer.buffer[wallcfg.pLookupTable[offset] + 0] = dimmValue(
+				  //From -1 to 1 since dmx_buffer.buffer[0] is DMX address 1
+	              dmx_buffer.buffer[wallcfg.pLookupTable[offset] - 1] = dimmValue(
 	                  dmx_fb[offset * 3 + 0]);
-	              dmx_buffer.buffer[wallcfg.pLookupTable[offset] + 1] = dimmValue(
+	              dmx_buffer.buffer[wallcfg.pLookupTable[offset]] = dimmValue(
 	            		  dmx_fb[offset * 3 + 1]);
-	              dmx_buffer.buffer[wallcfg.pLookupTable[offset] + 2] = dimmValue(
+	              dmx_buffer.buffer[wallcfg.pLookupTable[offset] + 1] = dimmValue(
 	            		  dmx_fb[offset * 3 + 2]);
 	            }
 	        }
+	  	return;
 	  }
-	  else
-	  {
 
-		  /*
-				"WRONG Resolution: Wall has %d x %d, but file is %d x %d",
-				wallcfg.width, wallcfg.height, width, height);
-		   */
+     /*
+		"WRONG Resolution: Wall has %d x %d, but file is %d x %d",
+	    wallcfg.width, wallcfg.height, width, height);
+	  */
 
-	      /* Set the DMX buffer directly */
-	      memcpy(dmx_buffer.buffer, dmx_fb, dmx_buffer.length);
-	    }
-
+	 /* Set the DMX buffer directly */
+	 memcpy(dmx_buffer.buffer, dmx_fb, dmx_buffer.length);
 }
 

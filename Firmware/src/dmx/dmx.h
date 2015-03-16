@@ -86,6 +86,7 @@ extern "C"
    */
   int dmx_update(int width, int height);
 
+  uint32_t* dmx_getLookupTable(void);
 #ifdef __cplusplus
 }
 #endif
