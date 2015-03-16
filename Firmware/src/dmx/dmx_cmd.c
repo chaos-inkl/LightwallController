@@ -178,7 +178,7 @@ cmd_dmx_modify(BaseSequentialStream *chp, int argc, char *argv[])
 		  if(table != NULL) {
 		  	dmx_getScreenresolution(&width, &height);
 			int x,y;
-			for(y = height -1; y >= 0; y--) {
+			for(y = 0; y < height; y++) {
 			  chprintf(chp,"| ");
 			  for(x = 0; x < width; x++) {
               	chprintf(chp,"%03d |", table[y * width + x]);
